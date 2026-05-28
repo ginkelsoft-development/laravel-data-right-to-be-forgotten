@@ -1,0 +1,78 @@
+{
+  "name": "ginkelsoft/laravel-data-right-to-be-forgotten",
+  "description": "A Laravel package that implements GDPR art. 17 right-to-be-forgotten across configured Eloquent models, with per-model delete/anonymize strategies and a tamper-evident audit log.",
+  "keywords": [
+    "laravel",
+    "gdpr",
+    "avg",
+    "right-to-be-forgotten",
+    "forget",
+    "erasure",
+    "anonymize",
+    "compliance",
+    "audit-log",
+    "ginkelsoft"
+  ],
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Wietse van Ginkel",
+      "email": "info@ginkelsoft.com",
+      "homepage": "https://ginkelsoft.com",
+      "role": "Developer"
+    }
+  ],
+  "require": {
+    "php": "^8.2",
+    "illuminate/support": "^10.0 || ^11.0 || ^12.0 || ^13.0",
+    "illuminate/database": "^10.0 || ^11.0 || ^12.0 || ^13.0",
+    "illuminate/console": "^10.0 || ^11.0 || ^12.0 || ^13.0",
+    "nesbot/carbon": "^2.62 || ^3.0",
+    "ginkelsoft/laravel-compliance-core": "dev-development"
+  },
+  "require-dev": {
+    "orchestra/testbench": "^8.0 || ^9.0 || ^10.0 || ^11.0",
+    "pestphp/pest": "^2.30 || ^3.0",
+    "phpunit/phpunit": "^10.5 || ^11.0 || ^12.0",
+    "phpstan/phpstan": "^1.10 || ^2.0",
+    "laravel/pint": "^1.18"
+  },
+  "repositories": [
+    {
+      "type": "path",
+      "url": "../laravel-compliance-core",
+      "options": {"symlink": true}
+    }
+  ],
+  "autoload": {
+    "psr-4": {
+      "Ginkelsoft\\DataRightToBeForgotten\\": "src/",
+      "Ginkelsoft\\DataRightToBeForgotten\\Database\\Factories\\": "database/factories/",
+      "Ginkelsoft\\DataRightToBeForgotten\\Database\\Seeders\\": "database/seeders/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Ginkelsoft\\DataRightToBeForgotten\\Tests\\": "tests/"
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Ginkelsoft\\DataRightToBeForgotten\\DataRightToBeForgottenServiceProvider"
+      ]
+    }
+  },
+  "scripts": {
+    "test": "vendor/bin/pest",
+    "analyse": "vendor/bin/phpstan analyse",
+    "format": "vendor/bin/pint"
+  },
+  "config": {
+    "allow-plugins": {
+      "pestphp/pest-plugin": true
+    }
+  },
+  "minimum-stability": "dev",
+  "prefer-stable": true
+}

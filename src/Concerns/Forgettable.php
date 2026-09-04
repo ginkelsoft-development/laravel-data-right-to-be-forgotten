@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Ginkelsoft\DataRightToBeForgotten\Concerns;
 
+use Ginkelsoft\ComplianceCore\Concerns\HasSubjectQuery;
+use Ginkelsoft\ComplianceCore\Contracts\ResolvesSubjectColumn;
+use Ginkelsoft\DataRightToBeForgotten\Actions\ForgetSubject;
 use Ginkelsoft\DataRightToBeForgotten\Support\ForgettableConfig;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -20,16 +22,28 @@ use Illuminate\Database\Eloquent\Model;
  * attribute or a protected `$forgettable` array property (the property
  * form supports per-field anonymize strategies).
  *
- * `forSubjectQuery` returns the query that selects every row belonging
- * to the given subject. The default implementation uses
- * `WHERE column = subject`; models with a more complex mapping can
- * override the method on the model itself (see ForgetTicket in the
- * test suite for an OR-across-two-columns example).
+ * `forSubjectQuery` (the default `WHERE column = subject` query) comes
+ * from {@see HasSubjectQuery} in `ginkelsoft/laravel-compliance-core`.
+ * This trait only has to answer {@see ResolvesSubjectColumn}'s
+ * `subjectColumn()` question. Because every subject-driven trait in the
+ * compliance family (this one, and subject-access's `Exportable`)
+ * shares that same base trait, a model combining both no longer needs
+ * an `insteadof` to resolve a `forSubjectQuery` conflict — there is
+ * only one implementation to inherit.
+ *
+ * Models with a subject mapping more complex than `column = subject`
+ * (multi-column, polymorphic, joined, etc) keep overriding
+ * `forSubjectQuery` directly on the model (see ForgetTicket in the test
+ * suite for an OR-across-two-columns example) — a model method always
+ * wins over a trait method, so the override still takes effect without
+ * any extra wiring.
  *
  * @mixin Model
  */
 trait Forgettable
 {
+    use HasSubjectQuery;
+
     /**
      * Resolve the forget policy for this model.
      *
@@ -41,28 +55,34 @@ trait Forgettable
     }
 
     /**
-     * Build the query that selects every record of this model belonging
-     * to the given subject.
+     * The column {@see HasSubjectQuery} filters on for its default
+     * `WHERE column = subject` query.
      *
-     * Override on the model when the link is more complex than
-     * `column = subject` (multi-column, polymorphic, joined, etc).
+     * Deliberate behaviour decision: models that use this trait but
+     * never declare a policy (no `#[Forgettable]` attribute, no
+     * `$forgettable` property) now make `forSubjectQuery()` throw
+     * instead of silently building a `WHERE 1=0` query (the pre-refactor
+     * behaviour). Every caller inside this package ({@see ForgetSubject})
+     * already resolves and checks {@see ForgettableConfig} before ever
+     * calling `forSubjectQuery()`, so this only matters for code calling
+     * the method directly on a misconfigured model — and failing loudly
+     * there is preferable to a query that quietly matches nothing and
+     * looks like "subject has no data" instead of "policy is missing".
      *
-     * @return Builder<static>
+     * @throws \LogicException When no forget policy is declared.
      */
-    public static function forSubjectQuery(string $subject): Builder
+    public static function subjectColumn(): string
     {
-        /** @var Builder<static> $query */
-        $query = static::query();
-
         $policy = ForgettableConfig::for(static::class);
 
         if ($policy === null) {
-            $query = $query->whereRaw('1=0');
-        } else {
-            $query = $query->where($policy->column, '=', $subject);
+            throw new \LogicException(
+                static::class.' uses the Forgettable trait but declares no forget policy '
+                .'(no #[Forgettable] attribute and no $forgettable property), so forSubjectQuery() '
+                .'cannot resolve which column to filter on.'
+            );
         }
 
-        /** @var Builder<static> $query */
-        return $query;
+        return $policy->column;
     }
 }

@@ -87,7 +87,45 @@ polymorphic relation, etc) override the static `forSubjectQuery` method on
 the model. See `tests/Models/ForgetTicket.php` for an OR-across-two-columns
 example.
 
-### 2. Register the models
+### 2. Combining with subject access (optional, no conflict resolution needed)
+
+A model can carry both `Forgettable` (this package) and `Exportable`
+(`laravel-data-subject-access`) without any `insteadof` gymnastics. Both
+traits build their `forSubjectQuery` on the shared `HasSubjectQuery` trait
+from `ginkelsoft/laravel-compliance-core`, so PHP does not see a method
+collision between them — as long as the two policies use the same subject
+column, resolved once on the model itself:
+
+```php
+use Ginkelsoft\DataRightToBeForgotten\Attributes\Forgettable as ForgettableAttribute;
+use Ginkelsoft\DataRightToBeForgotten\Concerns\Forgettable;
+use Ginkelsoft\DataRightToBeForgotten\Contracts\Forgettable as ForgettableContract;
+use Ginkelsoft\DataSubjectAccess\Attributes\Exportable as ExportableAttribute;
+use Ginkelsoft\DataSubjectAccess\Concerns\Exportable;
+use Ginkelsoft\DataSubjectAccess\Contracts\Exportable as ExportableContract;
+
+#[ForgettableAttribute(column: 'user_id', action: 'delete')]
+#[ExportableAttribute(column: 'user_id')]
+class User extends Model implements ForgettableContract, ExportableContract
+{
+    use Forgettable, Exportable;
+
+    // One explicit column, shared by both policies. Without this, each
+    // trait falls back to its own policy's column, and PHP raises a
+    // trait-collision error if you use both traits on the same model —
+    // declaring the method here directly resolves it, no `insteadof`.
+    public static function subjectColumn(): string
+    {
+        return 'user_id';
+    }
+}
+```
+
+If the two policies genuinely need different columns, skip
+`subjectColumn` and override `forSubjectQuery` on the model itself
+instead (same escape hatch as the complex-mapping case above).
+
+### 3. Register the models
 
 ```php
 // config/forget.php
@@ -101,7 +139,7 @@ return [
 ];
 ```
 
-### 3. Run the sweep
+### 4. Run the sweep
 
 ```bash
 php artisan retention:forget 01HXYZ --dry-run
@@ -115,7 +153,7 @@ orchestrator iterates every registered model and applies its policy to
 records linked to that subject. Idempotent: a second run finds no new
 records and writes no new log entries.
 
-### 4. Verify the audit chain
+### 5. Verify the audit chain
 
 ```php
 use Ginkelsoft\ComplianceCore\Config\LogSecret;
@@ -173,24 +211,6 @@ COMPLIANCE_LOG_SECRET="$(openssl rand -base64 32)"
   If `Order` is forgotten but `OrderLine` is not in the list, the order
   lines remain — give them their own Forgettable policy if they hold
   personal data.
-- **Trait conflict with subject-access.** If a model carries both
-  `Forgettable` and `Exportable` (from `laravel-data-subject-access`), PHP
-  requires explicit conflict resolution because both traits define
-  `forSubjectQuery`. The two defaults are functionally identical when both
-  policies use the same subject column, so picking one with `insteadof`
-  suffices:
-  ```php
-  use Ginkelsoft\DataRightToBeForgotten\Concerns\Forgettable;
-  use Ginkelsoft\DataSubjectAccess\Concerns\Exportable;
-  class User extends Model implements ExportableContract, ForgettableContract
-  {
-      use Exportable, Forgettable {
-          Forgettable::forSubjectQuery insteadof Exportable;
-      }
-  }
-  ```
-  If the two policies need DIFFERENT columns, override `forSubjectQuery` on
-  the model itself instead of using `insteadof`.
 - **Backups and warehouse copies are out of scope.** Document that
   separately in your DPIA.
 - **Re-creation after forget is application logic.** If your app re-fills a
@@ -205,6 +225,11 @@ vendor/bin/pest
 vendor/bin/phpstan analyse --memory-limit=1G
 vendor/bin/pint --test
 ```
+
+## See also
+
+- [`CHANGELOG.md`](CHANGELOG.md) — notable changes per release.
+- The family packages listed at the top of this README.
 
 ## Reporting bugs
 
